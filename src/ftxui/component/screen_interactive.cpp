@@ -67,7 +67,7 @@ namespace {
 
 ScreenInteractive* g_active_screen = nullptr;  // NOLINT
 
-void Flush() {
+void Flush(std::ostream& outputStream) {
   // Emscripten doesn't implement flush. We interpret zero as flush.
   outputStream << '\0' << std::flush;
 }
@@ -348,7 +348,7 @@ ScreenInteractive::ScreenInteractive(int dimx,
     : Screen(dimx, dimy),
       dimension_(dimension),
       use_alternative_screen_(use_alternative_screen),
-      outputStream(&outputStream) {
+      outputStream(outputStream) {
   task_receiver_ = MakeReceiver<Task>();
 }
 
@@ -507,7 +507,7 @@ void ScreenInteractive::PreMain() {
     std::swap(suspended_screen_, g_active_screen);
     // Reset cursor position to the top of the screen and clear the screen.
     suspended_screen_->ResetCursorPosition();
-    outputStream << suspended_screen_->ResetPosition(/*clear=*/true);
+    outputStream.get() << suspended_screen_->ResetPosition(/*clear=*/true);
     suspended_screen_->dimx_ = 0;
     suspended_screen_->dimy_ = 0;
 
@@ -532,7 +532,7 @@ void ScreenInteractive::PostMain() {
   // Restore suspended screen.
   if (suspended_screen_) {
     // Clear screen, and put the cursor at the beginning of the drawing.
-    outputStream << ResetPosition(/*clear=*/true);
+    outputStream.get() << ResetPosition(/*clear=*/true);
     dimx_ = 0;
     dimy_ = 0;
     Uninstall();
@@ -541,11 +541,11 @@ void ScreenInteractive::PostMain() {
   } else {
     Uninstall();
 
-    outputStream << '\r';
+    outputStream.get() << '\r';
     // On final exit, keep the current drawing and reset cursor position one
     // line after it.
     if (!use_alternative_screen_) {
-      outputStream << std::endl;
+      outputStream.get() << std::endl;
     }
   }
 }
@@ -588,20 +588,20 @@ void ScreenInteractive::Install() {
   // is important, because we are using two different channels (stdout vs
   // termios/WinAPI) to communicate with the terminal emulator below. See
   // https://github.com/ArthurSonzogni/FTXUI/issues/846
-  Flush();
+  Flush(outputStream);
 
   // After uninstalling the new configuration, flush it to the terminal to
   // ensure it is fully applied:
-  on_exit_functions.emplace([] { Flush(); });
+  on_exit_functions.emplace([this] { Flush(outputStream); });
 
   on_exit_functions.emplace([this] { ExitLoopClosure()(); });
 
   // Request the terminal to report the current cursor shape. We will restore it
   // on exit.
-  outputStream << DECRQSS_DECSCUSR;
+  outputStream.get() << DECRQSS_DECSCUSR;
   on_exit_functions.emplace([=] {
-    outputStream << "\033[?25h";  // Enable cursor.
-    outputStream << "\033[" + std::to_string(cursor_reset_shape_) + " q";
+    outputStream.get() << "\033[?25h";  // Enable cursor.
+    outputStream.get() << "\033[" + std::to_string(cursor_reset_shape_) + " q";
   });
 
   // Install signal handlers to restore the terminal state on exit. The default
@@ -682,13 +682,13 @@ void ScreenInteractive::Install() {
 #endif
 
   auto enable = [&](const std::vector<DECMode>& parameters) {
-    outputStream << Set(parameters);
-    on_exit_functions.emplace([=] { outputStream << Reset(parameters); });
+    outputStream.get() << Set(parameters);
+    on_exit_functions.emplace([=] { outputStream.get() << Reset(parameters); });
   };
 
   auto disable = [&](const std::vector<DECMode>& parameters) {
-    outputStream << Reset(parameters);
-    on_exit_functions.emplace([=] { outputStream << Set(parameters); });
+    outputStream.get() << Reset(parameters);
+    on_exit_functions.emplace([=] { outputStream.get() << Set(parameters); });
   };
 
   if (use_alternative_screen_) {
@@ -711,7 +711,7 @@ void ScreenInteractive::Install() {
 
   // After installing the new configuration, flush it to the terminal to
   // ensure it is fully applied:
-  Flush();
+  Flush(outputStream);
 
   quit_ = false;
   task_sender_ = task_receiver_->MakeSender();
@@ -853,7 +853,7 @@ void ScreenInteractive::Draw(Component component) {
 
   const bool resized = (dimx != dimx_) || (dimy != dimy_);
   ResetCursorPosition();
-  outputStream << ResetPosition(/*clear=*/resized);
+  outputStream.get() << ResetPosition(/*clear=*/resized);
 
   // Resize the screen if needed.
   if (resized) {
@@ -877,14 +877,14 @@ void ScreenInteractive::Draw(Component component) {
   static int i = -3;
   ++i;
   if (!use_alternative_screen_ && (i % 150 == 0)) {  // NOLINT
-    outputStream << DeviceStatusReport(DSRMode::kCursor);
+    outputStream.get() << DeviceStatusReport(DSRMode::kCursor);
   }
 #else
   static int i = -3;
   ++i;
   if (!use_alternative_screen_ &&
       (previous_frame_resized_ || i % 40 == 0)) {  // NOLINT
-    outputStream << DeviceStatusReport(DSRMode::kCursor);
+    outputStream.get() << DeviceStatusReport(DSRMode::kCursor);
   }
 #endif
   previous_frame_resized_ = resized;
@@ -918,15 +918,15 @@ void ScreenInteractive::Draw(Component component) {
     }
   }
 
-  outputStream << ToString() << set_cursor_position;
-  Flush();
+  outputStream.get() << ToString() << set_cursor_position;
+  Flush(outputStream);
   Clear();
   frame_valid_ = true;
 }
 
 // private
 void ScreenInteractive::ResetCursorPosition() {
-  outputStream << reset_cursor_position;
+  outputStream.get() << reset_cursor_position;
   reset_cursor_position = "";
 }
 
@@ -960,11 +960,11 @@ void ScreenInteractive::Signal(int signal) {
   if (signal == SIGTSTP) {
     Post([&] {
       ResetCursorPosition();
-      outputStream << ResetPosition(/*clear*/ true);  // Cursor to the beginning
+      outputStream.get() << ResetPosition(/*clear*/ true);  // Cursor to the beginning
       Uninstall();
       dimx_ = 0;
       dimy_ = 0;
-      Flush();
+      Flush(outputStream);
       std::ignore = std::raise(SIGTSTP);
       Install();
     });

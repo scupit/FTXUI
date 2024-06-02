@@ -386,7 +386,8 @@ Screen Screen::Create(Dimensions dimension) {
   return {dimension.dimx, dimension.dimy};
 }
 
-Screen::Screen(int dimx, int dimy) : Image{dimx, dimy} {
+Screen::Screen(int dimx, int dimy, std::ostream& outputStream)
+    : Image{dimx, dimy}, outputStream(outputStream) {
 #if defined(_WIN32)
   // The placement of this call is a bit weird, however we can assume that
   // anybody who instantiates a Screen object eventually wants to output
@@ -437,7 +438,7 @@ std::string Screen::ToString() const {
 
 // Print the Screen to the terminal.
 void Screen::Print() const {
-  outputStream << ToString() << '\0' << std::flush;
+  outputStream.get() << ToString() << '\0' << std::flush;
 }
 
 /// @brief Return a string to be printed in order to reset the cursor position
@@ -449,7 +450,7 @@ void Screen::Print() const {
 ///   auto document = render();
 ///   auto screen = Screen::Create(Dimension::Full(), Dimension::Fit(document));
 ///   Render(screen, document);
-///   outputStream << reset_position << screen.ToString() << std::flush;
+///   outputStream.get() << reset_position << screen.ToString() << std::flush;
 ///   reset_position = screen.ResetPosition();
 ///
 ///   using namespace std::chrono_literals;

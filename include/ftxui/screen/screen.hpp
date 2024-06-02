@@ -5,6 +5,8 @@
 #define FTXUI_SCREEN_SCREEN_HPP
 
 #include <cstdint>  // for uint8_t
+#include <functional>
+#include <iostream>
 #include <string>   // for string, basic_string, allocator
 #include <vector>   // for vector
 
@@ -25,7 +27,7 @@ Dimensions Full();
 class Screen : public Image {
  public:
   // Constructors:
-  Screen(int dimx, int dimy);
+  Screen(int dimx, int dimy, std::ostream& outputStream = std::cout);
   static Screen Create(Dimensions dimension);
   static Screen Create(Dimensions width, Dimensions height);
 
@@ -70,7 +72,7 @@ class Screen : public Image {
  protected:
   Cursor cursor_;
   std::vector<std::string> hyperlinks_ = {""};
-  std::ostream* outputStream;
+  std::reference_wrapper<std::ostream> outputStream;
 };
 
 }  // namespace ftxui

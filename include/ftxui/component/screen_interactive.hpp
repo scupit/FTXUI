@@ -128,7 +128,7 @@ class ScreenInteractive : public Screen {
 
   bool force_handle_ctrl_c_ = true;
   bool force_handle_ctrl_z_ = true;
-  std::ostream* outputStream;
+  std::reference_wrapper<std::ostream> outputStream;
 
   // The style of the cursor to restore on exit.
   int cursor_reset_shape_ = 1;
