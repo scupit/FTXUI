@@ -31,12 +31,12 @@ class ScreenInteractivePrivate;
 class ScreenInteractive : public Screen {
  public:
   // Constructors:
-  static ScreenInteractive FixedSize(int dimx, int dimy);
-  static ScreenInteractive Fullscreen();
-  static ScreenInteractive FullscreenPrimaryScreen();
-  static ScreenInteractive FullscreenAlternateScreen();
-  static ScreenInteractive FitComponent();
-  static ScreenInteractive TerminalOutput(std::ostream& outStream = std::cout);
+  static ScreenInteractive FixedSize(int dimx, int dimy, std::ostream& outputStream);
+  static ScreenInteractive Fullscreen(std::ostream& outputStream);
+  static ScreenInteractive FullscreenPrimaryScreen(std::ostream& outputStream);
+  static ScreenInteractive FullscreenAlternateScreen(std::ostream& outputStream);
+  static ScreenInteractive FitComponent(std::ostream& outputStream);
+  static ScreenInteractive TerminalOutput(std::ostream& outStream);
 
   // Options. Must be called before Loop().
   void TrackMouse(bool enable = true);
@@ -102,7 +102,7 @@ class ScreenInteractive : public Screen {
                     int dimy,
                     Dimension dimension,
                     bool use_alternative_screen,
-                    std::ostream& outputStream = std::cout);
+                    std::ostream& outputStream);
 
   bool track_mouse_ = true;
 

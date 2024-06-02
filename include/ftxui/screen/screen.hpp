@@ -7,6 +7,7 @@
 #include <cstdint>  // for uint8_t
 #include <functional>
 #include <iostream>
+#include <ostream>
 #include <string>   // for string, basic_string, allocator
 #include <vector>   // for vector
 
@@ -27,9 +28,9 @@ Dimensions Full();
 class Screen : public Image {
  public:
   // Constructors:
-  Screen(int dimx, int dimy, std::ostream& outputStream = std::cout);
-  static Screen Create(Dimensions dimension);
-  static Screen Create(Dimensions width, Dimensions height);
+  Screen(int dimx, int dimy, std::ostream& outputStream);
+  static Screen Create(Dimensions dimension, std::ostream& outputStream);
+  static Screen Create(Dimensions width, Dimensions height, std::ostream& outputStream);
 
   std::string ToString() const;
 

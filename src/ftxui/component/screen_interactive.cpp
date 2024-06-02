@@ -11,6 +11,7 @@
 #include <functional>        // for function
 #include <initializer_list>  // for initializer_list
 #include <iostream>  // for cout, ostream, operator<<, basic_ostream, endl, flush
+#include <ostream>
 #include <stack>     // for stack
 #include <thread>    // for thread, sleep_for
 #include <tuple>     // for _Swallow_assign, ignore
@@ -345,7 +346,7 @@ ScreenInteractive::ScreenInteractive(int dimx,
                                      int dimy,
                                      Dimension dimension,
                                      bool use_alternative_screen, std::ostream& outputStream)
-    : Screen(dimx, dimy),
+    : Screen(dimx, dimy, outputStream),
       dimension_(dimension),
       use_alternative_screen_(use_alternative_screen),
       outputStream(outputStream) {
@@ -353,12 +354,13 @@ ScreenInteractive::ScreenInteractive(int dimx,
 }
 
 // static
-ScreenInteractive ScreenInteractive::FixedSize(int dimx, int dimy) {
+ScreenInteractive ScreenInteractive::FixedSize(int dimx, int dimy, std::ostream& outputStream) {
   return {
       dimx,
       dimy,
       Dimension::Fixed,
       false,
+      outputStream
   };
 }
 
@@ -367,8 +369,8 @@ ScreenInteractive ScreenInteractive::FixedSize(int dimx, int dimy) {
 /// alternate screen buffer to avoid messing with the terminal content.
 /// @note This is the same as `ScreenInteractive::FullscreenAlternateScreen()`
 // static
-ScreenInteractive ScreenInteractive::Fullscreen() {
-  return FullscreenAlternateScreen();
+ScreenInteractive ScreenInteractive::Fullscreen(std::ostream& outputStream) {
+  return FullscreenAlternateScreen(outputStream);
 }
 
 /// @ingroup component
@@ -376,12 +378,13 @@ ScreenInteractive ScreenInteractive::Fullscreen() {
 /// buffer is being used. It means if the terminal is resized, the previous
 /// content might mess up with the terminal content.
 // static
-ScreenInteractive ScreenInteractive::FullscreenPrimaryScreen() {
+ScreenInteractive ScreenInteractive::FullscreenPrimaryScreen(std::ostream& outputStream) {
   return {
       0,
       0,
       Dimension::Fullscreen,
       false,
+      outputStream
   };
 }
 
@@ -389,12 +392,13 @@ ScreenInteractive ScreenInteractive::FullscreenPrimaryScreen() {
 /// Create a ScreenInteractive taking the full terminal size. This is using the
 /// alternate screen buffer to avoid messing with the terminal content.
 // static
-ScreenInteractive ScreenInteractive::FullscreenAlternateScreen() {
+ScreenInteractive ScreenInteractive::FullscreenAlternateScreen(std::ostream& outputStream) {
   return {
       0,
       0,
       Dimension::Fullscreen,
       true,
+      outputStream
   };
 }
 
@@ -410,12 +414,13 @@ ScreenInteractive ScreenInteractive::TerminalOutput(std::ostream& outputStream) 
 }
 
 // static
-ScreenInteractive ScreenInteractive::FitComponent() {
+ScreenInteractive ScreenInteractive::FitComponent(std::ostream& outputStream) {
   return {
       0,
       0,
       Dimension::FitComponent,
       false,
+      outputStream
   };
 }
 
