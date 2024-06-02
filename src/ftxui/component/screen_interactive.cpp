@@ -69,7 +69,7 @@ ScreenInteractive* g_active_screen = nullptr;  // NOLINT
 
 void Flush() {
   // Emscripten doesn't implement flush. We interpret zero as flush.
-  std::cout << '\0' << std::flush;
+  outputStream << '\0' << std::flush;
 }
 
 constexpr int timeout_milliseconds = 20;
@@ -344,10 +344,11 @@ void AnimationListener(std::atomic<bool>* quit, Sender<Task> out) {
 ScreenInteractive::ScreenInteractive(int dimx,
                                      int dimy,
                                      Dimension dimension,
-                                     bool use_alternative_screen)
+                                     bool use_alternative_screen, std::ostream& outputStream)
     : Screen(dimx, dimy),
       dimension_(dimension),
-      use_alternative_screen_(use_alternative_screen) {
+      use_alternative_screen_(use_alternative_screen),
+      outputStream(&outputStream) {
   task_receiver_ = MakeReceiver<Task>();
 }
 
@@ -398,12 +399,13 @@ ScreenInteractive ScreenInteractive::FullscreenAlternateScreen() {
 }
 
 // static
-ScreenInteractive ScreenInteractive::TerminalOutput() {
+ScreenInteractive ScreenInteractive::TerminalOutput(std::ostream& outputStream) {
   return {
       0,
       0,
       Dimension::TerminalOutput,
       false,
+      outputStream
   };
 }
 
@@ -505,7 +507,7 @@ void ScreenInteractive::PreMain() {
     std::swap(suspended_screen_, g_active_screen);
     // Reset cursor position to the top of the screen and clear the screen.
     suspended_screen_->ResetCursorPosition();
-    std::cout << suspended_screen_->ResetPosition(/*clear=*/true);
+    outputStream << suspended_screen_->ResetPosition(/*clear=*/true);
     suspended_screen_->dimx_ = 0;
     suspended_screen_->dimy_ = 0;
 
@@ -530,7 +532,7 @@ void ScreenInteractive::PostMain() {
   // Restore suspended screen.
   if (suspended_screen_) {
     // Clear screen, and put the cursor at the beginning of the drawing.
-    std::cout << ResetPosition(/*clear=*/true);
+    outputStream << ResetPosition(/*clear=*/true);
     dimx_ = 0;
     dimy_ = 0;
     Uninstall();
@@ -539,11 +541,11 @@ void ScreenInteractive::PostMain() {
   } else {
     Uninstall();
 
-    std::cout << '\r';
+    outputStream << '\r';
     // On final exit, keep the current drawing and reset cursor position one
     // line after it.
     if (!use_alternative_screen_) {
-      std::cout << std::endl;
+      outputStream << std::endl;
     }
   }
 }
@@ -596,10 +598,10 @@ void ScreenInteractive::Install() {
 
   // Request the terminal to report the current cursor shape. We will restore it
   // on exit.
-  std::cout << DECRQSS_DECSCUSR;
+  outputStream << DECRQSS_DECSCUSR;
   on_exit_functions.emplace([=] {
-    std::cout << "\033[?25h";  // Enable cursor.
-    std::cout << "\033[" + std::to_string(cursor_reset_shape_) + " q";
+    outputStream << "\033[?25h";  // Enable cursor.
+    outputStream << "\033[" + std::to_string(cursor_reset_shape_) + " q";
   });
 
   // Install signal handlers to restore the terminal state on exit. The default
@@ -680,13 +682,13 @@ void ScreenInteractive::Install() {
 #endif
 
   auto enable = [&](const std::vector<DECMode>& parameters) {
-    std::cout << Set(parameters);
-    on_exit_functions.emplace([=] { std::cout << Reset(parameters); });
+    outputStream << Set(parameters);
+    on_exit_functions.emplace([=] { outputStream << Reset(parameters); });
   };
 
   auto disable = [&](const std::vector<DECMode>& parameters) {
-    std::cout << Reset(parameters);
-    on_exit_functions.emplace([=] { std::cout << Set(parameters); });
+    outputStream << Reset(parameters);
+    on_exit_functions.emplace([=] { outputStream << Set(parameters); });
   };
 
   if (use_alternative_screen_) {
@@ -851,7 +853,7 @@ void ScreenInteractive::Draw(Component component) {
 
   const bool resized = (dimx != dimx_) || (dimy != dimy_);
   ResetCursorPosition();
-  std::cout << ResetPosition(/*clear=*/resized);
+  outputStream << ResetPosition(/*clear=*/resized);
 
   // Resize the screen if needed.
   if (resized) {
@@ -875,14 +877,14 @@ void ScreenInteractive::Draw(Component component) {
   static int i = -3;
   ++i;
   if (!use_alternative_screen_ && (i % 150 == 0)) {  // NOLINT
-    std::cout << DeviceStatusReport(DSRMode::kCursor);
+    outputStream << DeviceStatusReport(DSRMode::kCursor);
   }
 #else
   static int i = -3;
   ++i;
   if (!use_alternative_screen_ &&
       (previous_frame_resized_ || i % 40 == 0)) {  // NOLINT
-    std::cout << DeviceStatusReport(DSRMode::kCursor);
+    outputStream << DeviceStatusReport(DSRMode::kCursor);
   }
 #endif
   previous_frame_resized_ = resized;
@@ -916,7 +918,7 @@ void ScreenInteractive::Draw(Component component) {
     }
   }
 
-  std::cout << ToString() << set_cursor_position;
+  outputStream << ToString() << set_cursor_position;
   Flush();
   Clear();
   frame_valid_ = true;
@@ -924,7 +926,7 @@ void ScreenInteractive::Draw(Component component) {
 
 // private
 void ScreenInteractive::ResetCursorPosition() {
-  std::cout << reset_cursor_position;
+  outputStream << reset_cursor_position;
   reset_cursor_position = "";
 }
 
@@ -958,7 +960,7 @@ void ScreenInteractive::Signal(int signal) {
   if (signal == SIGTSTP) {
     Post([&] {
       ResetCursorPosition();
-      std::cout << ResetPosition(/*clear*/ true);  // Cursor to the beginning
+      outputStream << ResetPosition(/*clear*/ true);  // Cursor to the beginning
       Uninstall();
       dimx_ = 0;
       dimy_ = 0;

@@ -70,6 +70,7 @@ class Screen : public Image {
  protected:
   Cursor cursor_;
   std::vector<std::string> hyperlinks_ = {""};
+  std::ostream* outputStream;
 };
 
 }  // namespace ftxui

@@ -8,6 +8,8 @@
 #include <ftxui/component/receiver.hpp>  // for Receiver, Sender
 #include <functional>                    // for function
 #include <memory>                        // for shared_ptr
+#include <iostream>
+#include <ostream>
 #include <string>                        // for string
 #include <thread>                        // for thread
 #include <variant>                       // for variant
@@ -34,7 +36,7 @@ class ScreenInteractive : public Screen {
   static ScreenInteractive FullscreenPrimaryScreen();
   static ScreenInteractive FullscreenAlternateScreen();
   static ScreenInteractive FitComponent();
-  static ScreenInteractive TerminalOutput();
+  static ScreenInteractive TerminalOutput(std::ostream& outStream = std::cout);
 
   // Options. Must be called before Loop().
   void TrackMouse(bool enable = true);
@@ -99,7 +101,8 @@ class ScreenInteractive : public Screen {
   ScreenInteractive(int dimx,
                     int dimy,
                     Dimension dimension,
-                    bool use_alternative_screen);
+                    bool use_alternative_screen,
+                    std::ostream& outputStream = std::cout);
 
   bool track_mouse_ = true;
 
@@ -125,6 +128,7 @@ class ScreenInteractive : public Screen {
 
   bool force_handle_ctrl_c_ = true;
   bool force_handle_ctrl_z_ = true;
+  std::ostream* outputStream;
 
   // The style of the cursor to restore on exit.
   int cursor_reset_shape_ = 1;
