@@ -81,9 +81,9 @@ namespace {
 
 ScreenInteractive* g_active_screen = nullptr;  // NOLINT
 
-void Flush() {
+void Flush(std::ostream& outputStream) {
   // Emscripten doesn't implement flush. We interpret zero as flush.
-  std::cout << '\0' << std::flush;
+  outputStream << '\0' << std::flush;
 }
 
 constexpr int timeout_milliseconds = 20;
@@ -267,21 +267,24 @@ class CapturedMouseImpl : public CapturedMouseInterface {
 ScreenInteractive::ScreenInteractive(Dimension dimension,
                                      int dimx,
                                      int dimy,
-                                     bool use_alternative_screen)
-    : Screen(dimx, dimy),
+                                     bool use_alternative_screen,
+                                     std::ostream& outputStream)
+    : Screen(dimx, dimy, outputStream),
       dimension_(dimension),
-      use_alternative_screen_(use_alternative_screen) {
+      use_alternative_screen_(use_alternative_screen),
+      outputStream_(outputStream) {
   internal_ = std::make_unique<Internal>(
       [&](Event event) { PostEvent(std::move(event)); });
 }
 
 // static
-ScreenInteractive ScreenInteractive::FixedSize(int dimx, int dimy) {
+ScreenInteractive ScreenInteractive::FixedSize(int dimx, int dimy, std::ostream& outputStream) {
   return {
       Dimension::Fixed,
       dimx,
       dimy,
       /*use_alternative_screen=*/false,
+      outputStream,
   };
 }
 
@@ -289,47 +292,50 @@ ScreenInteractive ScreenInteractive::FixedSize(int dimx, int dimy) {
 /// alternate screen buffer to avoid messing with the terminal content.
 /// @note This is the same as `ScreenInteractive::FullscreenAlternateScreen()`
 // static
-ScreenInteractive ScreenInteractive::Fullscreen() {
-  return FullscreenAlternateScreen();
+ScreenInteractive ScreenInteractive::Fullscreen(std::ostream& outputStream) {
+  return FullscreenAlternateScreen(outputStream);
 }
 
 /// Create a ScreenInteractive taking the full terminal size. The primary screen
 /// buffer is being used. It means if the terminal is resized, the previous
 /// content might mess up with the terminal content.
 // static
-ScreenInteractive ScreenInteractive::FullscreenPrimaryScreen() {
+ScreenInteractive ScreenInteractive::FullscreenPrimaryScreen(std::ostream& outputStream) {
   auto terminal = Terminal::Size();
   return {
       Dimension::Fullscreen,
       terminal.dimx,
       terminal.dimy,
       /*use_alternative_screen=*/false,
+      outputStream,
   };
 }
 
 /// Create a ScreenInteractive taking the full terminal size. This is using the
 /// alternate screen buffer to avoid messing with the terminal content.
 // static
-ScreenInteractive ScreenInteractive::FullscreenAlternateScreen() {
+ScreenInteractive ScreenInteractive::FullscreenAlternateScreen(std::ostream& outputStream) {
   auto terminal = Terminal::Size();
   return {
       Dimension::Fullscreen,
       terminal.dimx,
       terminal.dimy,
       /*use_alternative_screen=*/true,
+      outputStream,
   };
 }
 
 /// Create a ScreenInteractive whose width match the terminal output width and
 /// the height matches the component being drawn.
 // static
-ScreenInteractive ScreenInteractive::TerminalOutput() {
+ScreenInteractive ScreenInteractive::TerminalOutput(std::ostream& outputStream) {
   auto terminal = Terminal::Size();
   return {
       Dimension::TerminalOutput,
       terminal.dimx,
       terminal.dimy,  // Best guess.
       /*use_alternative_screen=*/false,
+      outputStream,
   };
 }
 
@@ -338,13 +344,14 @@ ScreenInteractive::~ScreenInteractive() = default;
 /// Create a ScreenInteractive whose width and height match the component being
 /// drawn.
 // static
-ScreenInteractive ScreenInteractive::FitComponent() {
+ScreenInteractive ScreenInteractive::FitComponent(std::ostream& outputStream) {
   auto terminal = Terminal::Size();
   return {
       Dimension::FitComponent,
       terminal.dimx,  // Best guess.
       terminal.dimy,  // Best guess.
       false,
+      outputStream,
   };
 }
 
@@ -438,7 +445,7 @@ void ScreenInteractive::PreMain() {
     std::swap(suspended_screen_, g_active_screen);
     // Reset cursor position to the top of the screen and clear the screen.
     suspended_screen_->ResetCursorPosition();
-    std::cout << suspended_screen_->ResetPosition(/*clear=*/true);
+    outputStream_.get() << suspended_screen_->ResetPosition(/*clear=*/true);
     suspended_screen_->dimx_ = 0;
     suspended_screen_->dimy_ = 0;
 
@@ -463,7 +470,7 @@ void ScreenInteractive::PostMain() {
   // Restore suspended screen.
   if (suspended_screen_) {
     // Clear screen, and put the cursor at the beginning of the drawing.
-    std::cout << ResetPosition(/*clear=*/true);
+    outputStream_.get() << ResetPosition(/*clear=*/true);
     dimx_ = 0;
     dimy_ = 0;
     Uninstall();
@@ -472,12 +479,12 @@ void ScreenInteractive::PostMain() {
   } else {
     Uninstall();
 
-    std::cout << '\r';
+    outputStream_.get() << '\r';
     // On final exit, keep the current drawing and reset cursor position one
     // line after it.
     if (!use_alternative_screen_) {
-      std::cout << '\n';
-      std::cout << std::flush;
+      outputStream_.get() << '\n';
+      outputStream_.get() << std::flush;
     }
   }
 }
@@ -532,20 +539,20 @@ void ScreenInteractive::Install() {
   // is important, because we are using two different channels (stdout vs
   // termios/WinAPI) to communicate with the terminal emulator below. See
   // https://github.com/ArthurSonzogni/FTXUI/issues/846
-  Flush();
+  Flush(outputStream_.get());
 
   InstallPipedInputHandling();
 
   // After uninstalling the new configuration, flush it to the terminal to
   // ensure it is fully applied:
-  on_exit_functions.emplace([] { Flush(); });
+  on_exit_functions.emplace([this] { Flush(outputStream_.get()); });
 
   // Request the terminal to report the current cursor shape. We will restore it
   // on exit.
-  std::cout << DECRQSS_DECSCUSR;
+  outputStream_.get() << DECRQSS_DECSCUSR;
   on_exit_functions.emplace([this] {
-    std::cout << "\033[?25h";  // Enable cursor.
-    std::cout << "\033[" + std::to_string(cursor_reset_shape_) + " q";
+    outputStream_.get() << "\033[?25h";  // Enable cursor.
+    outputStream_.get() << "\033[" + std::to_string(cursor_reset_shape_) + " q";
   });
 
   // Install signal handlers to restore the terminal state on exit. The default
@@ -635,13 +642,13 @@ void ScreenInteractive::Install() {
 #endif
 
   auto enable = [&](const std::vector<DECMode>& parameters) {
-    std::cout << Set(parameters);
-    on_exit_functions.emplace([=] { std::cout << Reset(parameters); });
+    outputStream_.get() << Set(parameters);
+    on_exit_functions.emplace([parameters, this] { outputStream_.get() << Reset(parameters); });
   };
 
   auto disable = [&](const std::vector<DECMode>& parameters) {
-    std::cout << Reset(parameters);
-    on_exit_functions.emplace([=] { std::cout << Set(parameters); });
+    outputStream_.get() << Reset(parameters);
+    on_exit_functions.emplace([parameters, this] { outputStream_.get() << Set(parameters); });
   };
 
   if (use_alternative_screen_) {
@@ -664,7 +671,7 @@ void ScreenInteractive::Install() {
 
   // After installing the new configuration, flush it to the terminal to
   // ensure it is fully applied:
-  Flush();
+  Flush(outputStream_.get());
 
   quit_ = false;
 
@@ -918,13 +925,13 @@ void ScreenInteractive::Draw(Component component) {
 
   const bool resized = frame_count_ == 0 || (dimx != dimx_) || (dimy != dimy_);
   ResetCursorPosition();
-  std::cout << ResetPosition(/*clear=*/resized);
+  outputStream_.get() << ResetPosition(/*clear=*/resized);
 
   // If the terminal width decrease, the terminal emulator will start wrapping
   // lines and make the display dirty. We should clear it completely.
   if ((dimx < dimx_) && !use_alternative_screen_) {
-    std::cout << "\033[J";  // clear terminal output
-    std::cout << "\033[H";  // move cursor to home position
+    outputStream_.get() << "\033[J";  // clear terminal output
+    outputStream_.get() << "\033[H";  // move cursor to home position
   }
 
   // Resize the screen if needed.
@@ -949,14 +956,14 @@ void ScreenInteractive::Draw(Component component) {
   static int i = -3;
   ++i;
   if (!use_alternative_screen_ && (i % 150 == 0)) {  // NOLINT
-    std::cout << DeviceStatusReport(DSRMode::kCursor);
+    outputStream_.get() << DeviceStatusReport(DSRMode::kCursor);
   }
 #else
   static int i = -3;
   ++i;
   if (!use_alternative_screen_ &&
       (previous_frame_resized_ || i % 40 == 0)) {  // NOLINT
-    std::cout << DeviceStatusReport(DSRMode::kCursor);
+    outputStream_.get() << DeviceStatusReport(DSRMode::kCursor);
   }
 #endif
   previous_frame_resized_ = resized;
@@ -995,8 +1002,8 @@ void ScreenInteractive::Draw(Component component) {
     }
   }
 
-  std::cout << ToString() << set_cursor_position;
-  Flush();
+  outputStream_.get() << ToString() << set_cursor_position;
+  Flush(outputStream_.get());
   Clear();
   frame_valid_ = true;
   frame_count_++;
@@ -1004,7 +1011,7 @@ void ScreenInteractive::Draw(Component component) {
 
 // private
 void ScreenInteractive::ResetCursorPosition() {
-  std::cout << reset_cursor_position;
+  outputStream_.get() << reset_cursor_position;
   reset_cursor_position = "";
 }
 
@@ -1035,11 +1042,11 @@ void ScreenInteractive::Signal(int signal) {
   if (signal == SIGTSTP) {
     Post([&] {
       ResetCursorPosition();
-      std::cout << ResetPosition(/*clear*/ true);  // Cursor to the beginning
+      outputStream_.get() << ResetPosition(/*clear*/ true);  // Cursor to the beginning
       Uninstall();
       dimx_ = 0;
       dimy_ = 0;
-      Flush();
+      Flush(outputStream_.get());
       std::ignore = std::raise(SIGTSTP);
       Install();
     });

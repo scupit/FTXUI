@@ -6,7 +6,9 @@
 
 #include <atomic>      // for atomic
 #include <functional>  // for function
+#include <iostream>    // for cout
 #include <memory>      // for shared_ptr
+#include <ostream>     // for ostream
 #include <string>      // for string
 
 #include "ftxui/component/animation.hpp"       // for TimePoint
@@ -35,12 +37,12 @@ class TaskRunner;
 class ScreenInteractive : public Screen {
  public:
   // Constructors:
-  static ScreenInteractive FixedSize(int dimx, int dimy);
-  static ScreenInteractive Fullscreen();
-  static ScreenInteractive FullscreenPrimaryScreen();
-  static ScreenInteractive FullscreenAlternateScreen();
-  static ScreenInteractive FitComponent();
-  static ScreenInteractive TerminalOutput();
+  static ScreenInteractive FixedSize(int dimx, int dimy, std::ostream& outputStream = std::cout);
+  static ScreenInteractive Fullscreen(std::ostream& outputStream = std::cout);
+  static ScreenInteractive FullscreenPrimaryScreen(std::ostream& outputStream = std::cout);
+  static ScreenInteractive FullscreenAlternateScreen(std::ostream& outputStream = std::cout);
+  static ScreenInteractive FitComponent(std::ostream& outputStream = std::cout);
+  static ScreenInteractive TerminalOutput(std::ostream& outputStream = std::cout);
 
   // Destructor.
   ~ScreenInteractive() override;
@@ -119,7 +121,8 @@ class ScreenInteractive : public Screen {
   ScreenInteractive(Dimension dimension,
                     int dimx,
                     int dimy,
-                    bool use_alternative_screen);
+                    bool use_alternative_screen,
+                    std::ostream& outputStream);
 
   const Dimension dimension_;
   const bool use_alternative_screen_;
@@ -152,6 +155,9 @@ class ScreenInteractive : public Screen {
 
   // The style of the cursor to restore on exit.
   int cursor_reset_shape_ = 1;
+
+  // Output stream for TUI rendering (allows stderr for shell scripting).
+  std::reference_wrapper<std::ostream> outputStream_;
 
   // Selection API:
   CapturedMouse selection_pending_;

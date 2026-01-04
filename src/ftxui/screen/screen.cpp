@@ -386,17 +386,18 @@ Dimensions Dimension::Full() {
 
 // static
 /// Create a screen with the given dimension along the x-axis and y-axis.
-Screen Screen::Create(Dimensions width, Dimensions height) {
-  return {width.dimx, height.dimy};
+Screen Screen::Create(Dimensions width, Dimensions height, std::ostream& outputStream) {
+  return {width.dimx, height.dimy, outputStream};
 }
 
 // static
 /// Create a screen with the given dimension.
-Screen Screen::Create(Dimensions dimension) {
-  return {dimension.dimx, dimension.dimy};
+Screen Screen::Create(Dimensions dimension, std::ostream& outputStream) {
+  return {dimension.dimx, dimension.dimy, outputStream};
 }
 
-Screen::Screen(int dimx, int dimy) : Image{dimx, dimy} {
+Screen::Screen(int dimx, int dimy, std::ostream& outputStream)
+    : Image{dimx, dimy}, outputStream_(outputStream) {
 #if defined(_WIN32)
   // The placement of this call is a bit weird, however we can assume that
   // anybody who instantiates a Screen object eventually wants to output
@@ -451,7 +452,7 @@ std::string Screen::ToString() const {
 
 // Print the Screen to the terminal.
 void Screen::Print() const {
-  std::cout << ToString() << '\0' << std::flush;
+  outputStream_.get() << ToString() << '\0' << std::flush;
 }
 
 /// @brief Return a string to be printed in order to reset the cursor position
