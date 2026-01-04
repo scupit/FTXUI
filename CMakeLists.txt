@@ -177,6 +177,11 @@ include(cmake/ftxui_install.cmake)
 include(cmake/ftxui_package.cmake)
 include(cmake/ftxui_modules.cmake)
 
+# Test executable for Sky fork
+add_executable(cli-list-select src/ftxui/cli-list-select.cpp)
+target_link_libraries(cli-list-select PRIVATE component)
+target_compile_features(cli-list-select PRIVATE cxx_std_17)
+
 add_subdirectory(examples)
 add_subdirectory(doc)
 
