@@ -329,11 +329,13 @@ ScreenInteractive ScreenInteractive::FullscreenAlternateScreen(std::ostream& out
 /// the height matches the component being drawn.
 // static
 ScreenInteractive ScreenInteractive::TerminalOutput(std::ostream& outputStream) {
-  auto terminal = Terminal::Size();
   return {
       Dimension::TerminalOutput,
-      terminal.dimx,
-      terminal.dimy,  // Best guess.
+      // Sky fork: Zeroes are the old behavior - they're used here to ensure the
+      // TUI doesn't take over the full terminal screen, and instead renders just after
+      // the content that's already present. Good for human-in-the-loop scripting.
+      0,
+      0,
       /*use_alternative_screen=*/false,
       outputStream,
   };
@@ -345,11 +347,13 @@ ScreenInteractive::~ScreenInteractive() = default;
 /// drawn.
 // static
 ScreenInteractive ScreenInteractive::FitComponent(std::ostream& outputStream) {
-  auto terminal = Terminal::Size();
   return {
       Dimension::FitComponent,
-      terminal.dimx,  // Best guess.
-      terminal.dimy,  // Best guess.
+      // Sky fork: Zeroes are the old behavior - they're used here to ensure the
+      // TUI doesn't take over the full terminal screen, and instead renders just after
+      // the content that's already present. Good for human-in-the-loop scripting.
+      0,
+      0,
       false,
       outputStream,
   };
@@ -923,7 +927,7 @@ void ScreenInteractive::Draw(Component component) {
       break;
   }
 
-  const bool resized = frame_count_ == 0 || (dimx != dimx_) || (dimy != dimy_);
+  const bool resized = (dimx != dimx_) || (dimy != dimy_);
   ResetCursorPosition();
   outputStream_.get() << ResetPosition(/*clear=*/resized);
 
